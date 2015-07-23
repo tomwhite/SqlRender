@@ -38,6 +38,15 @@ public class SqlRender {
 		}
 	}
 
+    	private static class ForEach {
+	    public Span collection;
+	    public Span statement;
+
+	    public int start() { return collection.start; }
+
+	    int end() { return statement.end; }
+	}
+
 	private static List<Span> findCurlyBracketSpans(String str) {
 		Stack<Integer> starts = new Stack<Integer>();
 		List<Span> spans = new ArrayList<Span>();
@@ -101,6 +110,42 @@ public class SqlRender {
 					}
 		return ifThenElses;
 	}
+
+    private static List<ForEach> linkForEachs(String str, List<Span> spans) {
+        List<ForEach> forEachs = new ArrayList<ForEach>();
+        if (spans.size() > 1)
+	  for (int i = 0; i < spans.size() - 1; i++) {
+	      String collectionClause = str.substring(spans.get(i).start, spans.get(i).end).trim();
+//	      System.err.println(collectionClause);
+	      if (collectionClause.startsWith("{foreach")) {
+		for (int j = i + 1; j < spans.size(); j++) {
+		    if (spans.get(j).start > spans.get(i).end) {
+		        String inBetween = str.substring(spans.get(i).end, spans.get(j).start);
+		        inBetween = inBetween.trim();
+		        if (inBetween.equals(":")) {
+			  ForEach forEach = new ForEach();
+			  forEach.collection = spans.get(i);
+			  forEach.statement = spans.get(j);
+//   							if (j < spans.size()) {
+//   								for (int k = j + 1; k < spans.size(); k++)
+//   									if (spans.get(k).start > spans.get(j).end) {
+//   										inBetween = str.substring(spans.get(j).end, spans.get(k).start);
+//   										inBetween = inBetween.trim();
+//   										if (inBetween.equals(":")) {
+//   											ifThenElse.ifFalse = spans.get(k);
+//   											ifThenElse.hasIfFalse = true;
+//   										}
+//   									}
+//
+//   							}
+			  forEachs.add(forEach);
+		        }
+		    }
+		}
+	      }
+	  }
+        return forEachs;
+    }
 
 	private static boolean evaluateCondition(String str) {
 		str = str.trim();
@@ -267,12 +312,91 @@ public class SqlRender {
 		return defaults;
 	}
 
+    	private static class ForEachCollection {
+	    Map<String, String> parameterMap;
+	    List<String> tokens;
+	    int count;
+
+	    ForEachCollection(Map<String, String> parameterMap, List<String> tokens, int count) {
+	        this.parameterMap = parameterMap;
+	        this.tokens = tokens;
+	        this.count = count;
+	    }
+	}
+
+    	private static ForEachCollection expandForEachLists(String str, ForEach forEach, Map<String, String> parameterMap) {
+
+	    int count = 0;
+	    Map<String, String> collectionMap = new HashMap<String, String>();
+	    List<String> collectionTokens = new ArrayList<String>();
+	    String collection = str.substring(forEach.collection.start, forEach.collection.end);
+//	    System.err.println("BEFORE: " + collection);
+
+	    // Must start with "{FOREACH" and end with "}"
+	    collection = collection.trim();
+	    collection = collection.substring(8);
+	    collection = collection.substring(0, collection.length() - 1);
+	    //collection = removeParentheses(collection);
+	    List<String> names = StringUtils.safeSplit(collection, ',');
+//	    System.err.println("HELLO");
+
+	    List<String[]> allValues = new ArrayList<String[]>();
+
+	    for (int i = 0; i < names.size(); ++i) {
+	        names.set(i, names.get(i).trim().substring(1));
+//	        System.err.println("NAME: " + names.get(i));
+	        collectionTokens.add(names.get(i));
+
+	        String[] values = parameterMap.get(names.get(i)).split(",");
+	        for (int j = 0; j < values.length; ++j) {
+		  values[j] = values[j].trim();
+	        }
+	        if (count < values.length) {
+		  count = values.length; // Take maximum length
+	        }
+
+	        allValues.add(values);
+	    }
+
+	    for (int i = 0; i < names.size(); ++i) {
+	        String name = names.get(i);
+	        String[] values = allValues.get(i);
+	        for (int j = 0; j < count; ++j) {
+		  String value = values[j % values.length]; // Cycle through values
+		  collectionMap.put((name + "_" + j), value);
+	        }
+	    }
+
+//	    System.err.println("AFTER: " + collection);
+//
+//	    System.err.println("TOKENS:");
+//	    for (String token : collectionTokens) {
+//	        System.err.println("\t" + token);
+//	    }
+//	    System.err.println("PARAMETERS:");
+//	    for (Map.Entry<String, String> x : collectionMap.entrySet()) {
+//	        System.err.println("\t" + x.getKey() + " -> " + x.getValue());
+//	    }
+//	    System.err.println("");
+
+	    return new ForEachCollection(collectionMap, collectionTokens, count);
+	}
+
+    	private static String parseParameterDefaults(String string, Map<String, String> parameterToValue) {
+	    Map<String, String> defaults = extractDefaults(string);
+	    string = removeDefaults(string);
+	    for (Map.Entry<String, String> pair : defaults.entrySet())
+	        if (!parameterToValue.containsKey(pair.getKey()))
+		  parameterToValue.put(pair.getKey(), pair.getValue());
+	    return string;
+	}
+
 	private static String substituteParameters(String string, Map<String, String> parameterToValue) {
-		Map<String, String> defaults = extractDefaults(string);
-		string = removeDefaults(string);
-		for (Map.Entry<String, String> pair : defaults.entrySet())
-			if (!parameterToValue.containsKey(pair.getKey()))
-				parameterToValue.put(pair.getKey(), pair.getValue());
+//		Map<String, String> defaults = extractDefaults(string);
+//		string = removeDefaults(string);
+//		for (Map.Entry<String, String> pair : defaults.entrySet())
+//			if (!parameterToValue.containsKey(pair.getKey()))
+//				parameterToValue.put(pair.getKey(), pair.getValue());
 
 		// Sort parameters from longest to shortest so if one parameter name is a substring of another, it won't go wrong:
 		List<Map.Entry<String, String>> sortedParameterToValue = new ArrayList<Map.Entry<String, String>>(parameterToValue.entrySet());
@@ -318,8 +442,72 @@ public class SqlRender {
 		return result;
 	}
 
+    	private static String parseForEach(String str,  Map<String, String> parameterToValue) {
+   		List<Span> spans = findCurlyBracketSpans(str);
+   		List<ForEach> forEachs = linkForEachs(str, spans);
+
+   		String result = new String(str); // Explicit copy
+//	    	int count = 0;
+	    	for (ForEach forEach : forEachs) {
+//		    System.err.println("foreach #" + count);
+
+		    ForEachCollection forEachCollection = expandForEachLists(result, forEach, parameterToValue);
+		    StringBuilder sb = new StringBuilder();
+
+		    String statement = result.substring(forEach.statement.start + 1, forEach.statement.end - 1);
+
+		    for (int i = 0; i < forEachCollection.count; ++i) {
+		        String iterationStatement = new String(statement); // Explicit copy
+		        for (int j = 0; j < forEachCollection.tokens.size(); ++j) {
+			  String oldToken = "@" + forEachCollection.tokens.get(j);
+			  String newToken = oldToken + "_" + i;
+			  iterationStatement = iterationStatement.replaceAll(oldToken, newToken);
+		        }
+
+		        sb.append(iterationStatement).append("\n");
+		    }
+
+//		    System.err.println("BEFORE: " + statement);
+
+		    result = StringUtils.replace(result, forEach.collection.start, forEach.statement.end, sb.toString());
+
+//		    System.err.println("AFTER: " + result);
+
+//		    System.err.println("SB:\n" + sb.toString());
+
+		    //str = replace();
+
+		    for (Map.Entry<String, String> entry : forEachCollection.parameterMap.entrySet()) {
+		        parameterToValue.put(entry.getKey(), entry.getValue());
+		    }
+
+		    for (String oldParameter : forEachCollection.tokens) {
+		        parameterToValue.remove(oldParameter);
+		    }
+
+
+//		    forEach.statement.start;
+//		    ++count;
+		}
+//   		for (IfThenElse ifThenElse : ifThenElses) {
+//   			if (ifThenElse.condition.valid) {
+//   				if (evaluateCondition(result.substring(ifThenElse.condition.start + 1, ifThenElse.condition.end - 1)))
+//   					result = replace(result, spans, ifThenElse.start(), ifThenElse.end(), ifThenElse.ifTrue.start + 1, ifThenElse.ifTrue.end - 2);
+//   				else {
+//   					if (ifThenElse.hasIfFalse)
+//   						result = replace(result, spans, ifThenElse.start(), ifThenElse.end(), ifThenElse.ifFalse.start + 1, ifThenElse.ifFalse.end - 2);
+//   					else
+//   						result = replace(result, spans, ifThenElse.start(), ifThenElse.end(), 0, -1);
+//   				}
+//   			}
+//   		}
+   		return result;
+   	}
+
 	private static String renderSql(String str, Map<String, String> parameterToValue) {
-		String result = substituteParameters(str, parameterToValue);
+	    	String result = parseParameterDefaults(str, parameterToValue);
+	    	result = parseForEach(result, parameterToValue);
+		result = substituteParameters(result, parameterToValue);
 		result = parseIfThenElse(result);
 		return result;
 	}

@@ -133,3 +133,13 @@ test_that("If-then-else: does not equals pattern 2", {
   sql <- renderSql("{123 <> 234}?{true}:{false}")$sql
   expect_equal(sql, "true")
 })
+
+test_that("For-each: simple example", {
+  sql <- renderSql("{FOREACH @a}:{SELECT @a;}", a = c("dog", "cat"))$sql
+  expect_equal(sql,"dog; SELECT cat;")
+})
+
+test_that("For-each: zip example", {
+  sql <- renderSql("{FOREACH @a,@b}:{SELECT @a, @b;}", a = c("dog", "cat"), b = c("female", "male"))$sql
+  expect_equal(sql,"SELECT dog, female; SELECT cat, male;")
+})

@@ -7,6 +7,15 @@ public class TestSqlRender {
 		String sql = "-- { 1500 in (@list_of_analysis_ids) | 1501 in (@list_of_analysis_ids) | 1502 in (@list_of_analysis_ids) | 1503 in (@list_of_analysis_ids) | 1504 in (@list_of_analysis_ids) | 1505 in (@list_of_analysis_ids) | 1506 in (@list_of_analysis_ids) | 1507 in (@list_of_analysis_ids) | 1508 in (@list_of_analysis_ids) | 1509 in (@list_of_analysis_ids) | 1510 in (@list_of_analysis_ids) | 1511 in (@list_of_analysis_ids)}?{HERE!}";
 		sql = SqlRender.renderSql(sql, new String[]{"list_of_analysis_ids"}, new String[]{"1600,1601,1602,1603,1604,1605,1606,1607,1608,1609,1610"});
 		System.out.println(sql);
+
+	    	String sql2 = "{foreach @listForEach }:{@listForEach}";
+	    	sql2 = SqlRender.renderSql(sql2, new String[]{"listForEach"}, new String[]{"1600,1601,1602"});
+	    	System.out.println(sql2);
+
+
+	    	String sql3 = "{foreach @listForEach,@secondList}:{@listForEach @secondList}";
+    		sql3 = SqlRender.renderSql(sql3, new String[]{"listForEach", "secondList"}, new String[]{"1600,1601,1602","A,B"});
+    		System.out.println(sql3);
 		
 //		String[] parameters = new String[]{"a","ab"};
 //		String[] values = new String[]{"x","y"};
