@@ -16,6 +16,10 @@ public class TestSqlRender {
 	    	String sql3 = "{foreach @listForEach,@secondList}:{@listForEach @secondList}";
     		sql3 = SqlRender.renderSql(sql3, new String[]{"listForEach", "secondList"}, new String[]{"1600,1601,1602","A,B"});
     		System.out.println(sql3);
+
+	    	String sql4 = "{foreach @a}:{ {foreach @b}:{a = @a, b = @b} }";
+	    	sql4 = SqlRender.renderSql(sql4, new String[]{"a","b"}, new String[]{"1,2,3", "4,5"});
+	    	System.out.println(sql4);
 		
 //		String[] parameters = new String[]{"a","ab"};
 //		String[] values = new String[]{"x","y"};

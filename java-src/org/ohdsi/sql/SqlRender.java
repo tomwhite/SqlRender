@@ -111,8 +111,9 @@ public class SqlRender {
 		return ifThenElses;
 	}
 
-    private static List<ForEach> linkForEachs(String str, List<Span> spans) {
-        List<ForEach> forEachs = new ArrayList<ForEach>();
+    private static ForEach findNextForEach(String str) {
+        List<Span> spans = findCurlyBracketSpans(str);
+//        List<ForEach> forEachs = new ArrayList<ForEach>();
         if (spans.size() > 1)
 	  for (int i = 0; i < spans.size() - 1; i++) {
 	      String collectionClause = str.substring(spans.get(i).start, spans.get(i).end).trim();
@@ -126,6 +127,7 @@ public class SqlRender {
 			  ForEach forEach = new ForEach();
 			  forEach.collection = spans.get(i);
 			  forEach.statement = spans.get(j);
+			  return forEach;
 //   							if (j < spans.size()) {
 //   								for (int k = j + 1; k < spans.size(); k++)
 //   									if (spans.get(k).start > spans.get(j).end) {
@@ -138,13 +140,13 @@ public class SqlRender {
 //   									}
 //
 //   							}
-			  forEachs.add(forEach);
+//			  forEachs.add(forEach);
 		        }
 		    }
 		}
 	      }
 	  }
-        return forEachs;
+        return null;
     }
 
 	private static boolean evaluateCondition(String str) {
@@ -326,6 +328,12 @@ public class SqlRender {
 
     	private static ForEachCollection expandForEachLists(String str, ForEach forEach, Map<String, String> parameterMap) {
 
+
+	    System.err.println("FOREACH: " + str.substring(forEach.collection.start, forEach.statement.end));
+	    System.err.println("\t" + str.substring(forEach.collection.start, forEach.collection.end));
+	    System.err.println("\t" + str.substring(forEach.statement.start, forEach.statement.end));
+
+
 	    int count = 0;
 	    Map<String, String> collectionMap = new HashMap<String, String>();
 	    List<String> collectionTokens = new ArrayList<String>();
@@ -342,9 +350,11 @@ public class SqlRender {
 
 	    List<String[]> allValues = new ArrayList<String[]>();
 
+	    System.err.println("LOOP: " + names.size());
 	    for (int i = 0; i < names.size(); ++i) {
+	        System.err.println("NAME: " + names.get(i));
 	        names.set(i, names.get(i).trim().substring(1));
-//	        System.err.println("NAME: " + names.get(i));
+//
 	        collectionTokens.add(names.get(i));
 
 	        String[] values = parameterMap.get(names.get(i)).split(",");
@@ -443,12 +453,11 @@ public class SqlRender {
 	}
 
     	private static String parseForEach(String str,  Map<String, String> parameterToValue) {
-   		List<Span> spans = findCurlyBracketSpans(str);
-   		List<ForEach> forEachs = linkForEachs(str, spans);
+   		ForEach forEach = findNextForEach(str);
 
    		String result = new String(str); // Explicit copy
 //	    	int count = 0;
-	    	for (ForEach forEach : forEachs) {
+	    	if (forEach != null) {
 //		    System.err.println("foreach #" + count);
 
 		    ForEachCollection forEachCollection = expandForEachLists(result, forEach, parameterToValue);
